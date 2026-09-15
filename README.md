@@ -1,2 +1,9 @@
 # chef-cam-culinary-labs
-A working spreadsheet and fillable PDF form for designing educational culinary menu structures, cost breakdowns, lesson design and labor control. 
+
+A fillable PDF form generator for designing educational culinary menu structures, cost breakdowns, lesson design, and labor control.
+
+Run the source script with:
+
+```bash
+python3 build_form.py
+```
