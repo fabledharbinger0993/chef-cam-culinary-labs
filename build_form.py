@@ -64,7 +64,7 @@ def rounded_box(x, y, w, h, fill, border=BORDER, line_width=0.75, radius=CELL_RA
     c.roundRect(x, y, w, h, radius, fill=1, stroke=1)
 
 
-def field(name, x, y, w, h, size=9, tooltip="", align=0):
+def field(name, x, y, w, h, size=9, tooltip=""):
     rounded_box(x, y, w, h, FILL)
     form.textfield(
         name=name,
