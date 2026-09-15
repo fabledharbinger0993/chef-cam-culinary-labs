@@ -243,7 +243,7 @@ form.textfield(
     width=PAGE_W - 2 * MARGIN - (2 * CELL_INSET), height=notes_h - (2 * CELL_INSET),
     borderStyle="solid", borderWidth=0, borderColor=BORDER,
     fillColor=FILL, textColor=INK, fontSize=9,
-    fieldFlags="multiline", forceBorder=True,
+    fieldFlags="multiline", forceBorder=True, relative=False,
 )
 
 # ---------- Sign-off ----------
