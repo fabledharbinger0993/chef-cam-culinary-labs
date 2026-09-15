@@ -188,7 +188,7 @@ for si, slot in enumerate(SLOTS):
 # outer grid border
 c.setStrokeColor(BORDER)
 c.setLineWidth(1)
-c.roundRect(MARGIN, y, PAGE_W - 2 * MARGIN, grid_top - y, 6, fill=0, stroke=1)
+c.rect(MARGIN, y, PAGE_W - 2 * MARGIN, grid_top - y, fill=0, stroke=1)
 for xline in [MARGIN + SLOT_COL_W, go_x] + col_x[1:]:
     c.line(xline, y, xline, grid_top)
 
