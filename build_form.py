@@ -162,6 +162,7 @@ text(MARGIN, y0 + 3, "SLOT", size=8, font="Helvetica-Bold", color=colors.white)
 for i, d in enumerate(DAYS):
     text(col_x[i] + 4, y0 + 3, d, size=8, font="Helvetica-Bold", color=colors.white)
 text(go_x + 2, y0 + 3, "GO", size=7.5, font="Helvetica-Bold", color=colors.white)
+grid_top = y0 + hdr_h
 y = y0
 
 ROW_H = 32
@@ -187,7 +188,6 @@ for si, slot in enumerate(SLOTS):
 # outer grid border
 c.setStrokeColor(BORDER)
 c.setLineWidth(1)
-grid_top = (PAGE_H - MARGIN) - 60 - 6
 c.roundRect(MARGIN, y, PAGE_W - 2 * MARGIN, grid_top - y, 6, fill=0, stroke=1)
 for xline in [MARGIN + SLOT_COL_W, go_x] + col_x[1:]:
     c.line(xline, y, xline, grid_top)
