@@ -156,7 +156,7 @@ for i, d in enumerate(DAYS):
     text(col_x[i] + 4, y0 + 3, d, size=8, font="Helvetica-Bold", color=colors.white)
 text(go_x + 2, y0 + 3, "GO", size=7.5, font="Helvetica-Bold", color=colors.white)
 c.setFillColor(ACCENT)
-c.roundRect(MARGIN, y0, PAGE_W - 2 * MARGIN, hdr_h, 4, fill=1, stroke=0)
+c.rect(MARGIN, y0, PAGE_W - 2 * MARGIN, hdr_h, fill=1, stroke=0)
 # redraw text on top of the accent bar (rect draw order fix)
 text(MARGIN, y0 + 3, "SLOT", size=8, font="Helvetica-Bold", color=colors.white)
 for i, d in enumerate(DAYS):
@@ -198,7 +198,7 @@ y -= 6  # gap
 hdr_h = 14
 y0 = y - hdr_h
 c.setFillColor(SECONDARY_ACCENT)
-c.roundRect(MARGIN, y0, PAGE_W - 2 * MARGIN, hdr_h, 4, fill=1, stroke=0)
+c.rect(MARGIN, y0, PAGE_W - 2 * MARGIN, hdr_h, fill=1, stroke=0)
 text(MARGIN + 3, y0 + 3, "SERVICE DEBRIEF \u2014 fill at close, before anyone leaves", size=8, font="Helvetica-Bold", color=colors.white)
 y = y0
 
