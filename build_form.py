@@ -8,13 +8,28 @@ values below and rerun: `python3 build_form.py`
 
 QUICK TWEAKS
 ------------
-- SLOTS (list below)         -> add/remove/rename a row on the board
-- DAYS / DAY_KEYS (below)    -> add/remove/rename a day column
-- FILL / ACCENT / colors     -> the blue-green field tint and section banding
-- Any label_field(...) call  -> wording of a header field (e.g. "Anchor protein:")
-- checkbox(...) calls        -> the GO column checkboxes
-- INVENTORY_ROWS / INV_COLS  -> page 2 inventory rows and columns
-- USE_BY_GUIDE               -> page 2 conservative use-by reference lines
+- SLOTS (list below) -> add/remove/rename a row on the board
+- DAYS / DAY_KEYS (below) -> add/remove/rename a day column
+- FILL / ACCENT / colors -> the blue-green field tint and section banding
+- Any label_field(...) call -> wording of a header field (e.g. "Anchor protein:")
+- checkbox(...) calls -> the GO column checkboxes / anchor-use checkboxes
+
+THREE PAGES
+-----------
+Page 1 is the operational board -- what actually gets posted on the wall
+during service. It stays close to the original design on purpose: it's meant
+to be glanced at while hands are full, not read line by line.
+
+Page 2 is the COSTING, LABOR & WASTE WORKSHEET. It's where the teaching
+happens -- food cost math, labor math, prime cost, and an explicit checklist
+tying every dish back to the week's four anchor ingredients (the mechanism
+that keeps a short shopping list from becoming a wasteful one). It's
+deliberately kept off page 1 so the wall board doesn't get cluttered with
+numbers nobody needs mid-service.
+
+Page 3 is INVENTORY, YIELD & WASTE: what's on hand by weight, what it really
+costs per usable unit after trim, conservative use-by dates, and what got
+used vs. tossed. Edit INVENTORY_ROWS / INV_COLS / USE_BY_GUIDE to change it.
 
 Requires: pip install reportlab (already installed in this environment).
 Output: weekly_kitchen_board.pdf, next to this script.
@@ -34,6 +49,8 @@ ACCENT = colors.HexColor("#1F6F8B")
 SECONDARY_ACCENT = colors.HexColor("#2F9E8F")
 GRID_LINE = colors.HexColor("#BDD9E2")
 ROW_STRIPE = colors.HexColor("#F3FBFC")
+MUTED = colors.HexColor("#6C8C96")
+
 CELL_RADIUS = 6
 CELL_INSET = 1.25
 
@@ -46,8 +63,12 @@ SLOTS = [
     "Composed Dish",
     "Flatbread",
 ]
+
 DAYS = ["WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"]
 DAY_KEYS = ["wed", "thu", "fri", "sat"]
+
+# Short keys for the anchor-use checkbox matrix on page 2.
+ANCHORS = [("prot", "Protein"), ("veg", "Veg base"), ("sauce", "Sauce"), ("bread", "Bread/dough")]
 
 c = canvas.Canvas("weekly_kitchen_board.pdf", pagesize=landscape(letter))
 form = c.acroForm
@@ -106,6 +127,22 @@ def label_field(x, y, label, label_w, field_w, name, h=15, lsize=7.5, fsize=9):
     return x + label_w + field_w
 
 
+def banner(x, y, w, h, label, color=ACCENT, size=8, sub=""):
+    """Full-width accent bar with a bold left-aligned label (and optional
+    right-aligned sub-note), used to head off each worksheet section."""
+    c.setFillColor(color)
+    c.rect(x, y, w, h, fill=1, stroke=0)
+    text(x + 3, y + 3, label, size=size, font="Helvetica-Bold", color=colors.white)
+    if sub:
+        c.setFont("Helvetica-Oblique", 7)
+        c.setFillColor(colors.white)
+        c.drawRightString(x + w - 4, y + 3, sub)
+
+
+# =====================================================================
+# PAGE 1 -- the operational board
+# =====================================================================
+
 # ---------- Header band ----------
 y = PAGE_H - MARGIN  # 584, top
 
@@ -136,8 +173,9 @@ x = label_field(x, y0 + 2, "Sauce / dressing:", 90, 130, "anchor_sauce")
 x += 12
 x = label_field(x, y0 + 2, "Bread / dough:", 78, 130, "anchor_bread")
 x += 12
-remaining_w = (PAGE_W - MARGIN) - x - 70
-x = label_field(x, y0 + 2, "Carries over from last week:", 145, remaining_w, "carryover_note")
+carry_label_w = 145
+remaining_w = (PAGE_W - MARGIN) - x - carry_label_w
+x = label_field(x, y0 + 2, "Carries over from last week:", carry_label_w, remaining_w, "carryover_note")
 y = y0
 
 y -= 6  # gap
@@ -146,24 +184,19 @@ y -= 6  # gap
 SLOT_COL_W = 150
 GO_COL_W = 38
 DAY_COL_W = (PAGE_W - 2 * MARGIN - SLOT_COL_W - GO_COL_W) / 4.0
-
 col_x = [MARGIN + SLOT_COL_W + i * DAY_COL_W for i in range(4)]
 go_x = MARGIN + SLOT_COL_W + 4 * DAY_COL_W
 
 # column header row
 hdr_h = 14
 y0 = y - hdr_h
-text(MARGIN, y0 + 3, "SLOT", size=8, font="Helvetica-Bold", color=colors.white)
-for i, d in enumerate(DAYS):
-    text(col_x[i] + 4, y0 + 3, d, size=8, font="Helvetica-Bold", color=colors.white)
-text(go_x + 2, y0 + 3, "GO", size=7.5, font="Helvetica-Bold", color=colors.white)
 c.setFillColor(ACCENT)
 c.rect(MARGIN, y0, PAGE_W - 2 * MARGIN, hdr_h, fill=1, stroke=0)
-# redraw text on top of the accent bar (rect draw order fix)
 text(MARGIN, y0 + 3, "SLOT", size=8, font="Helvetica-Bold", color=colors.white)
 for i, d in enumerate(DAYS):
     text(col_x[i] + 4, y0 + 3, d, size=8, font="Helvetica-Bold", color=colors.white)
 text(go_x + 2, y0 + 3, "GO", size=7.5, font="Helvetica-Bold", color=colors.white)
+
 grid_top = y0 + hdr_h
 y = y0
 
@@ -181,7 +214,7 @@ for si, slot in enumerate(SLOTS):
               DAY_COL_W - 8, FIELD_H, size=8.5,
               tooltip=f"{slot} \u2014 {DAYS[i]}")
     checkbox(f"go_{si}", go_x + (GO_COL_W - 10) / 2.0, y0 + (ROW_H - 10) / 2.0, size=10,
-              tooltip=f"{slot} travels well as grab-and-go this week")
+             tooltip=f"{slot} travels well as grab-and-go this week")
     c.setStrokeColor(GRID_LINE)
     c.setLineWidth(0.5)
     c.line(MARGIN, y0, PAGE_W - MARGIN, y0)
@@ -225,7 +258,7 @@ y = y0
 
 row_h = 20
 y0 = y - row_h
-label_field(MARGIN, y0 + 2, "Plate cost / price flag this week:", 195, PAGE_W - 2 * MARGIN - 195,
+label_field(MARGIN, y0 + 2, "Plate cost flag (see Costing Worksheet, pg 2):", 260, PAGE_W - 2 * MARGIN - 260,
             "platecost_note", h=15)
 y = y0
 
@@ -250,27 +283,249 @@ form.textfield(
 
 # ---------- Sign-off ----------
 label_field(PAGE_W - MARGIN - 220, MARGIN, "Instructor initials:", 105, 90, "instructor_initials", h=14)
-text(MARGIN, MARGIN + 4, "Guthrie Entertainment \u2014 Cameron Kelly", size=7, font="Helvetica-Oblique",
-     color=colors.HexColor("#6C8C96"))
+text(MARGIN, MARGIN + 4, "Guthrie Entertainment \u2014 Cameron Kelly \u2014 pg. 1 of 3", size=7, font="Helvetica-Oblique",
+     color=MUTED)
 
 c.showPage()
 
 # =====================================================================
-# PAGE 2 -- Inventory on hand
+# PAGE 2 -- Costing, Labor & Waste Worksheet (the teaching page)
 # =====================================================================
-# One row per ingredient: weight on hand, where it lives, the date it came
-# in (or was prepped), and a conservative use-by date. The use-by guide at
-# the bottom is printed text -- edit USE_BY_GUIDE to change it.
 
-INVENTORY_ROWS = 19
-INV_COLS = [  # (header, field key, width) -- widths are scaled to fill the page
-    ("INGREDIENT", "item", 230),
-    ("WEIGHT", "weight", 60),
-    ("UNIT", "unit", 45),
-    ("STORAGE", "storage", 95),
-    ("IN / PREP DATE", "in_date", 90),
-    ("USE BY", "use_by", 90),
-    ("INITIALS", "initials", 55),
+y = PAGE_H - MARGIN
+FULL_W = PAGE_W - 2 * MARGIN
+
+# ---------- Header ----------
+row_h = 20
+y0 = y - row_h
+text(MARGIN, y0 + 5, "COSTING, LABOR & WASTE WORKSHEET", size=14, font="Helvetica-Bold", color=ACCENT)
+text(MARGIN + 300, y0 + 6, "do the math before you commit to the board", size=8.5, font="Helvetica-Oblique")
+label_field(PAGE_W - MARGIN - 200, y0 + 2, "Week of:", 45, 155, "week_of_pg2", h=15)
+y = y0
+y -= 4
+
+# ---------- Section A: food cost per dish ----------
+hdr_h = 14
+y0 = y - hdr_h
+banner(MARGIN, y0, FULL_W, hdr_h, "FOOD COST \u2014 one line per dish on this week's board",
+       color=ACCENT, sub="target is usually 28\u201335% food cost, unless your program sets otherwise")
+y = y0
+
+# column layout: slot name + 5 equal numeric columns
+FC_SLOT_W = 150
+fc_col_w = (FULL_W - FC_SLOT_W) / 5.0
+fc_headers = ["Cost / portion ($)", "Portions made", "Total food cost ($)", "Menu price ($)", "Food cost %"]
+fc_tips = [
+    "sum of ingredient cost for exactly one plate",
+    "how many portions this batch makes",
+    "cost per portion \u00d7 portions",
+    "what you're charging on the board",
+    "total food cost \u00f7 (price \u00d7 portions) \u00d7 100",
+]
+
+col_hdr_h = 14
+y0 = y - col_hdr_h
+c.setFillColor(colors.white)
+c.setStrokeColor(GRID_LINE)
+c.rect(MARGIN, y0, FULL_W, col_hdr_h, fill=1, stroke=0)
+text(MARGIN + 3, y0 + 3, "SLOT", size=7, font="Helvetica-Bold", color=MUTED)
+for i, h in enumerate(fc_headers):
+    text(MARGIN + FC_SLOT_W + i * fc_col_w + 3, y0 + 3, h, size=6.7, font="Helvetica-Bold", color=MUTED)
+fc_grid_top = y0 + col_hdr_h
+y = y0
+
+FC_ROW_H = 18
+fc_field_names = ["cost", "portions", "totalcost", "price", "fcpct"]
+for si, slot in enumerate(SLOTS):
+    y0 = y - FC_ROW_H
+    if si % 2 == 0:
+        c.setFillColor(ROW_STRIPE)
+        c.rect(MARGIN, y0, FULL_W, FC_ROW_H, fill=1, stroke=0)
+    text(MARGIN + 3, y0 + FC_ROW_H / 2.0 - 3, slot, size=7.5, font="Helvetica-Bold")
+    for i, fname in enumerate(fc_field_names):
+        field(f"{fname}_{si}", MARGIN + FC_SLOT_W + i * fc_col_w + 3, y0 + 2,
+              fc_col_w - 7, FC_ROW_H - 4, size=7.5,
+              tooltip=f"{slot} \u2014 {fc_tips[i]}")
+    c.setStrokeColor(GRID_LINE)
+    c.setLineWidth(0.5)
+    c.line(MARGIN, y0, PAGE_W - MARGIN, y0)
+    y = y0
+
+c.setStrokeColor(BORDER)
+c.setLineWidth(1)
+c.rect(MARGIN, y, FULL_W, fc_grid_top - y, fill=0, stroke=1)
+for i in range(1, 5):
+    xline = MARGIN + FC_SLOT_W + i * fc_col_w
+    c.line(xline, y, xline, fc_grid_top)
+c.line(MARGIN + FC_SLOT_W, y, MARGIN + FC_SLOT_W, fc_grid_top)
+
+y -= 6  # gap
+
+# ---------- Section B: labor ----------
+hdr_h = 14
+y0 = y - hdr_h
+banner(MARGIN, y0, FULL_W, hdr_h, "LABOR \u2014 what it costs to actually cook the board",
+       color=SECONDARY_ACCENT, sub="labor cost = prep hours \u00d7 wage rate")
+y = y0
+
+lab_label_w = 130
+lab_col_w = (FULL_W - lab_label_w) / 4.0
+
+col_hdr_h = 13
+y0 = y - col_hdr_h
+text(MARGIN + 3, y0 + 3, "PER DAY", size=7, font="Helvetica-Bold", color=MUTED)
+for i, d in enumerate(DAYS):
+    text(MARGIN + lab_label_w + i * lab_col_w + 3, y0 + 3, d, size=7, font="Helvetica-Bold", color=MUTED)
+y = y0
+
+row_h = 18
+y0 = y - row_h
+text(MARGIN, y0 + 4, "Prep hours, all cooks \u2192", size=7.5, font="Helvetica-Bold")
+for i in range(4):
+    field(f"laborhrs_{DAY_KEYS[i]}", MARGIN + lab_label_w + i * lab_col_w + 3, y0 + 2,
+          lab_col_w - 8, 14, size=7.5,
+          tooltip=f"Total prep hours ahead of {DAYS[i]}, added up across every cook (3 cooks \u00d7 2 hrs = 6)")
+y = y0
+
+row_h = 18
+y0 = y - row_h
+text(MARGIN, y0 + 4, "Wage rate ($/hr) \u2192", size=7.5, font="Helvetica-Bold")
+for i in range(4):
+    field(f"wage_{DAY_KEYS[i]}", MARGIN + lab_label_w + i * lab_col_w + 3, y0 + 2,
+          lab_col_w - 8, 14, size=7.5, tooltip=f"Hourly wage for prep staff, {DAYS[i]}")
+y = y0
+
+row_h = 18
+y0 = y - row_h
+text(MARGIN, y0 + 4, "Labor cost ($) \u2192", size=7.5, font="Helvetica-Bold")
+for i in range(4):
+    field(f"laborcost_{DAY_KEYS[i]}", MARGIN + lab_label_w + i * lab_col_w + 3, y0 + 2,
+          lab_col_w - 8, 14, size=7.5, tooltip=f"Prep hours \u00d7 wage rate, {DAYS[i]}")
+y = y0
+
+y -= 6  # gap
+
+# ---------- Section C: anchor use / waste check ----------
+hdr_h = 14
+y0 = y - hdr_h
+banner(MARGIN, y0, FULL_W, hdr_h, "INGREDIENT USE CHECK \u2014 which anchors does each dish lean on?",
+       color=ACCENT, sub="a dish with zero checks is buying something this week's list doesn't need")
+y = y0
+
+AN_SLOT_W = 260
+an_col_w = (FULL_W - AN_SLOT_W) / 4.0
+
+col_hdr_h = 13
+y0 = y - col_hdr_h
+c.setFillColor(colors.white)
+c.rect(MARGIN, y0, FULL_W, col_hdr_h, fill=1, stroke=0)
+text(MARGIN + 3, y0 + 3, "SLOT", size=7, font="Helvetica-Bold", color=MUTED)
+for i, (key, label) in enumerate(ANCHORS):
+    text(MARGIN + AN_SLOT_W + i * an_col_w + 3, y0 + 3, label, size=7, font="Helvetica-Bold", color=MUTED)
+an_grid_top = y0 + col_hdr_h
+y = y0
+
+AN_ROW_H = 16
+for si, slot in enumerate(SLOTS):
+    y0 = y - AN_ROW_H
+    if si % 2 == 0:
+        c.setFillColor(ROW_STRIPE)
+        c.rect(MARGIN, y0, FULL_W, AN_ROW_H, fill=1, stroke=0)
+    text(MARGIN + 3, y0 + AN_ROW_H / 2.0 - 3, slot, size=7.5, font="Helvetica-Bold")
+    for i, (key, label) in enumerate(ANCHORS):
+        cx = MARGIN + AN_SLOT_W + i * an_col_w + (an_col_w - 9) / 2.0
+        checkbox(f"uses_{key}_{si}", cx, y0 + (AN_ROW_H - 9) / 2.0, size=9,
+                 tooltip=f"{slot} uses this week's anchor {label.lower()}")
+    c.setStrokeColor(GRID_LINE)
+    c.setLineWidth(0.5)
+    c.line(MARGIN, y0, PAGE_W - MARGIN, y0)
+    y = y0
+
+c.setStrokeColor(BORDER)
+c.setLineWidth(1)
+c.rect(MARGIN, y, FULL_W, an_grid_top - y, fill=0, stroke=1)
+c.line(MARGIN + AN_SLOT_W, y, MARGIN + AN_SLOT_W, an_grid_top)
+for i in range(1, 4):
+    xline = MARGIN + AN_SLOT_W + i * an_col_w
+    c.line(xline, y, xline, an_grid_top)
+
+y -= 6  # gap
+
+# ---------- Section D: labor ratio + reflection ----------
+hdr_h = 14
+y0 = y - hdr_h
+banner(MARGIN, y0, FULL_W, hdr_h, "WEEK TOTALS \u2014 food + labor together is your prime cost",
+       color=SECONDARY_ACCENT, sub="prime cost is commonly kept near 60\u201365% of sales")
+y = y0
+
+row_h = 18
+y0 = y - row_h
+x = MARGIN
+x = label_field(x, y0 + 2, "Sales ($, price \u00d7 portions sold):", 150, 70, "week_sales", h=14, fsize=8.5)
+x += 16
+x = label_field(x, y0 + 2, "Food cost ($):", 70, 70, "week_foodcost", h=14, fsize=8.5)
+x += 16
+x = label_field(x, y0 + 2, "Labor cost ($):", 72, 70, "week_laborcost", h=14, fsize=8.5)
+y = y0
+
+row_h = 18
+y0 = y - row_h
+x = MARGIN
+x = label_field(x, y0 + 2, "Labor % = labor \u00f7 sales \u00d7 100 =", 150, 50, "labor_pct_note", h=14, fsize=8.5)
+text(x + 3, y0 + 6, "%", size=8.5, font="Helvetica-Bold")
+x += 30
+x = label_field(x, y0 + 2, "Prime cost % = (food + labor) \u00f7 sales \u00d7 100 =", 212, 50,
+                "prime_cost_pct", h=14, fsize=8.5)
+text(x + 3, y0 + 6, "%", size=8.5, font="Helvetica-Bold")
+y = y0
+y -= 5
+
+hdr_h = 12
+y0 = y - hdr_h
+text(MARGIN, y0 + 2,
+     "If this week's ingredient list had to lose one item, what would you drop \u2014 and what covers for it?",
+     size=7.5, font="Helvetica-Bold")
+y = y0
+
+reflection_bottom = MARGIN + 18
+reflection_h = y - reflection_bottom
+rounded_box(MARGIN, reflection_bottom, FULL_W, reflection_h, FILL)
+form.textfield(
+    name="limited_ingredients_reflection", tooltip="Substitution / waste reduction reflection",
+    x=MARGIN + CELL_INSET, y=reflection_bottom + CELL_INSET,
+    width=FULL_W - (2 * CELL_INSET), height=reflection_h - (2 * CELL_INSET),
+    borderStyle="solid", borderWidth=0, borderColor=BORDER,
+    fillColor=FILL, textColor=INK, fontSize=8.5,
+    fieldFlags="multiline", forceBorder=True, relative=False,
+)
+
+# ---------- Footer ----------
+text(MARGIN, MARGIN + 4, "Guthrie Entertainment \u2014 Cameron Kelly \u2014 pg. 2 of 3", size=7,
+     font="Helvetica-Oblique", color=MUTED)
+
+c.showPage()
+
+# =====================================================================
+# PAGE 3 -- Inventory, Yield & Waste
+# =====================================================================
+# One row per ingredient on hand. Weight + cost + yield % is what turns a
+# purchase price into a real cost per usable pound (the number page 2's
+# cost / portion depends on); used vs. tossed at week's end is the waste
+# record; the use-by guide keeps "use it up" from becoming unsafe.
+
+INVENTORY_ROWS = 18
+INV_COLS = [  # (header, field key, width, tooltip) -- widths are scaled to fill the page
+    ("INGREDIENT", "item", 150, "what it is"),
+    ("STORAGE", "storage", 58, "walk-in, freezer, dry, line"),
+    ("ON HAND", "weight", 50, "weight on hand when counted"),
+    ("UNIT", "unit", 34, "lb, oz, kg or g"),
+    ("$ / UNIT", "unit_cost", 50, "purchase price per unit of weight"),
+    ("YIELD %", "yield_pct", 46, "usable weight \u00f7 purchased weight \u00d7 100, after trim"),
+    ("IN / PREP", "in_date", 58, "date received, or date prepped / thawed"),
+    ("USE BY", "use_by", 58, "conservative use-by date -- see guide below"),
+    ("USED", "used", 46, "weight used by end of week"),
+    ("TOSSED", "tossed", 46, "weight thrown out by end of week"),
+    ("INIT.", "initials", 36, "who counted it"),
 ]
 # Refrigerated at 41F (5C) or below. Days use the SHORT end of the USDA FSIS
 # refrigerator ranges; the local health code wins wherever it is stricter.
@@ -283,41 +538,45 @@ USE_BY_GUIDE = [
 
 y = PAGE_H - MARGIN
 
-# Title row
+# ---------- Header ----------
 row_h = 20
 y0 = y - row_h
-text(MARGIN, y0 + 5, "INVENTORY ON HAND", size=15, font="Helvetica-Bold", color=ACCENT)
-text(MARGIN + 190, y0 + 6, "weigh it, date it, write the use-by before it goes on the shelf",
+text(MARGIN, y0 + 5, "INVENTORY, YIELD & WASTE", size=14, font="Helvetica-Bold", color=ACCENT)
+text(MARGIN + 215, y0 + 6, "weigh it, date it, cost it \u2014 then plan the board around what's here",
      size=8.5, font="Helvetica-Oblique")
-label_field(PAGE_W - MARGIN - 200, y0 + 2, "Week of:", 45, 155, "inv_week_of", h=15)
-y = y0 - 6
+label_field(PAGE_W - MARGIN - 200, y0 + 2, "Week of:", 45, 155, "week_of_pg3", h=15)
+y = y0 - 4
 
-# column header row
-scale = (PAGE_W - 2 * MARGIN) / float(sum(w for _, _, w in INV_COLS))
-inv_x = [MARGIN]
-for _, _, w in INV_COLS:
-    inv_x.append(inv_x[-1] + w * scale)
-
+# ---------- Inventory grid ----------
 hdr_h = 14
 y0 = y - hdr_h
-c.setFillColor(ACCENT)
-c.rect(MARGIN, y0, PAGE_W - 2 * MARGIN, hdr_h, fill=1, stroke=0)
-for ci, (label, _, _) in enumerate(INV_COLS):
-    text(inv_x[ci] + 4, y0 + 3, label, size=8, font="Helvetica-Bold", color=colors.white)
-grid_top = y0 + hdr_h
+banner(MARGIN, y0, FULL_W, hdr_h, "ON HAND \u2014 count at the start of the week, finish USED / TOSSED at close",
+       color=ACCENT, sub="real cost per usable unit = $ / unit \u00f7 (yield % \u00f7 100)")
 y = y0
 
-INV_ROW_H = 23
-INV_FIELD_H = 17
+scale = FULL_W / float(sum(col[2] for col in INV_COLS))
+inv_x = [MARGIN]
+for col in INV_COLS:
+    inv_x.append(inv_x[-1] + col[2] * scale)
+
+col_hdr_h = 13
+y0 = y - col_hdr_h
+for ci, (label, _, _, _) in enumerate(INV_COLS):
+    text(inv_x[ci] + 3, y0 + 3, label, size=6.7, font="Helvetica-Bold", color=MUTED)
+inv_grid_top = y0 + col_hdr_h
+y = y0
+
+INV_ROW_H = 21
+INV_FIELD_H = 15
 for ri in range(INVENTORY_ROWS):
     y0 = y - INV_ROW_H
     if ri % 2 == 0:
         c.setFillColor(ROW_STRIPE)
-        c.rect(MARGIN, y0, PAGE_W - 2 * MARGIN, INV_ROW_H, fill=1, stroke=0)
-    for ci, (label, key, _) in enumerate(INV_COLS):
+        c.rect(MARGIN, y0, FULL_W, INV_ROW_H, fill=1, stroke=0)
+    for ci, (label, key, _, tip) in enumerate(INV_COLS):
         field(f"inv_{ri}_{key}", inv_x[ci] + 3, y0 + (INV_ROW_H - INV_FIELD_H) / 2.0,
-              inv_x[ci + 1] - inv_x[ci] - 6, INV_FIELD_H, size=8.5,
-              tooltip=f"Row {ri + 1} — {label.title()}")
+              inv_x[ci + 1] - inv_x[ci] - 6, INV_FIELD_H, size=7.5,
+              tooltip=f"Row {ri + 1} \u2014 {tip}")
     c.setStrokeColor(GRID_LINE)
     c.setLineWidth(0.5)
     c.line(MARGIN, y0, PAGE_W - MARGIN, y0)
@@ -325,24 +584,33 @@ for ri in range(INVENTORY_ROWS):
 
 c.setStrokeColor(BORDER)
 c.setLineWidth(1)
-c.rect(MARGIN, y, PAGE_W - 2 * MARGIN, grid_top - y, fill=0, stroke=1)
+c.rect(MARGIN, y, FULL_W, inv_grid_top - y, fill=0, stroke=1)
 for xline in inv_x[1:-1]:
-    c.line(xline, y, xline, grid_top)
+    c.line(xline, y, xline, inv_grid_top)
 
-y -= 8  # gap
+y -= 6  # gap
+
+# ---------- Waste total ----------
+row_h = 18
+y0 = y - row_h
+x = MARGIN
+x = label_field(x, y0 + 2, "Waste ($) = tossed weight \u00d7 $ / unit, all rows (real cost if already trimmed):",
+                375, 60, "waste_dollars", h=14, fsize=8.5)
+x += 16
+label_field(x, y0 + 2, "Biggest toss & why:", 100, PAGE_W - MARGIN - x - 100, "waste_reason", h=14, fsize=8.5)
+y = y0
+
+y -= 6  # gap
 
 # ---------- Conservative use-by guide ----------
 hdr_h = 14
 y0 = y - hdr_h
-c.setFillColor(SECONDARY_ACCENT)
-c.rect(MARGIN, y0, PAGE_W - 2 * MARGIN, hdr_h, fill=1, stroke=0)
-text(MARGIN + 3, y0 + 3,
-     "CONSERVATIVE USE-BY GUIDE — refrigerated at 41°F / 5°C or below; "
-     "in / prep date counts as day 1",
-     size=8, font="Helvetica-Bold", color=colors.white)
+banner(MARGIN, y0, FULL_W, hdr_h,
+       "CONSERVATIVE USE-BY GUIDE \u2014 refrigerated at 41\u00b0F / 5\u00b0C or below",
+       color=SECONDARY_ACCENT, sub="in / prep date counts as day 1")
 y = y0
 
-guide_col_w = (PAGE_W - 2 * MARGIN) / 2.0
+guide_col_w = FULL_W / 2.0
 line_h = 13
 for gi, (item, days) in enumerate(USE_BY_GUIDE):
     gx = MARGIN + (gi % 2) * guide_col_w
@@ -355,7 +623,11 @@ y -= line_h * ((len(USE_BY_GUIDE) + 1) // 2)
 text(MARGIN + 3, y - 10,
      "Shortest end of USDA FSIS refrigerator ranges. Frozen items: date when thawed and restart the clock. "
      "Local health code overrides this guide. When in doubt, throw it out.",
-     size=7, font="Helvetica-Oblique", color=colors.HexColor("#6C8C96"))
+     size=7, font="Helvetica-Oblique", color=MUTED)
+
+# ---------- Footer ----------
+text(MARGIN, MARGIN + 4, "Guthrie Entertainment \u2014 Cameron Kelly \u2014 pg. 3 of 3", size=7,
+     font="Helvetica-Oblique", color=MUTED)
 
 c.showPage()
 c.save()
