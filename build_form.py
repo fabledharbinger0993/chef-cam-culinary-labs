@@ -13,6 +13,8 @@ QUICK TWEAKS
 - FILL / ACCENT / colors     -> the blue-green field tint and section banding
 - Any label_field(...) call  -> wording of a header field (e.g. "Anchor protein:")
 - checkbox(...) calls        -> the GO column checkboxes
+- INVENTORY_ROWS / INV_COLS  -> page 2 inventory rows and columns
+- USE_BY_GUIDE               -> page 2 conservative use-by reference lines
 
 Requires: pip install reportlab (already installed in this environment).
 Output: weekly_kitchen_board.pdf, next to this script.
@@ -250,6 +252,110 @@ form.textfield(
 label_field(PAGE_W - MARGIN - 220, MARGIN, "Instructor initials:", 105, 90, "instructor_initials", h=14)
 text(MARGIN, MARGIN + 4, "Guthrie Entertainment \u2014 Cameron Kelly", size=7, font="Helvetica-Oblique",
      color=colors.HexColor("#6C8C96"))
+
+c.showPage()
+
+# =====================================================================
+# PAGE 2 -- Inventory on hand
+# =====================================================================
+# One row per ingredient: weight on hand, where it lives, the date it came
+# in (or was prepped), and a conservative use-by date. The use-by guide at
+# the bottom is printed text -- edit USE_BY_GUIDE to change it.
+
+INVENTORY_ROWS = 19
+INV_COLS = [  # (header, field key, width) -- widths are scaled to fill the page
+    ("INGREDIENT", "item", 230),
+    ("WEIGHT", "weight", 60),
+    ("UNIT", "unit", 45),
+    ("STORAGE", "storage", 95),
+    ("IN / PREP DATE", "in_date", 90),
+    ("USE BY", "use_by", 90),
+    ("INITIALS", "initials", 55),
+]
+# Refrigerated at 41F (5C) or below. Days use the SHORT end of the USDA FSIS
+# refrigerator ranges; the local health code wins wherever it is stricter.
+USE_BY_GUIDE = [
+    ("Raw poultry, ground meat, fresh fish / shellfish", "1 day"),
+    ("Raw whole cuts: beef, pork, lamb (steaks, chops, roasts)", "3 days"),
+    ("Cooked proteins, grains, soups, leftovers", "3 days"),
+    ("Hard ceiling, any ready-to-eat item prepped in-house (FDA Food Code)", "7 days"),
+]
+
+y = PAGE_H - MARGIN
+
+# Title row
+row_h = 20
+y0 = y - row_h
+text(MARGIN, y0 + 5, "INVENTORY ON HAND", size=15, font="Helvetica-Bold", color=ACCENT)
+text(MARGIN + 190, y0 + 6, "weigh it, date it, write the use-by before it goes on the shelf",
+     size=8.5, font="Helvetica-Oblique")
+label_field(PAGE_W - MARGIN - 200, y0 + 2, "Week of:", 45, 155, "inv_week_of", h=15)
+y = y0 - 6
+
+# column header row
+scale = (PAGE_W - 2 * MARGIN) / float(sum(w for _, _, w in INV_COLS))
+inv_x = [MARGIN]
+for _, _, w in INV_COLS:
+    inv_x.append(inv_x[-1] + w * scale)
+
+hdr_h = 14
+y0 = y - hdr_h
+c.setFillColor(ACCENT)
+c.rect(MARGIN, y0, PAGE_W - 2 * MARGIN, hdr_h, fill=1, stroke=0)
+for ci, (label, _, _) in enumerate(INV_COLS):
+    text(inv_x[ci] + 4, y0 + 3, label, size=8, font="Helvetica-Bold", color=colors.white)
+grid_top = y0 + hdr_h
+y = y0
+
+INV_ROW_H = 23
+INV_FIELD_H = 17
+for ri in range(INVENTORY_ROWS):
+    y0 = y - INV_ROW_H
+    if ri % 2 == 0:
+        c.setFillColor(ROW_STRIPE)
+        c.rect(MARGIN, y0, PAGE_W - 2 * MARGIN, INV_ROW_H, fill=1, stroke=0)
+    for ci, (label, key, _) in enumerate(INV_COLS):
+        field(f"inv_{ri}_{key}", inv_x[ci] + 3, y0 + (INV_ROW_H - INV_FIELD_H) / 2.0,
+              inv_x[ci + 1] - inv_x[ci] - 6, INV_FIELD_H, size=8.5,
+              tooltip=f"Row {ri + 1} — {label.title()}")
+    c.setStrokeColor(GRID_LINE)
+    c.setLineWidth(0.5)
+    c.line(MARGIN, y0, PAGE_W - MARGIN, y0)
+    y = y0
+
+c.setStrokeColor(BORDER)
+c.setLineWidth(1)
+c.rect(MARGIN, y, PAGE_W - 2 * MARGIN, grid_top - y, fill=0, stroke=1)
+for xline in inv_x[1:-1]:
+    c.line(xline, y, xline, grid_top)
+
+y -= 8  # gap
+
+# ---------- Conservative use-by guide ----------
+hdr_h = 14
+y0 = y - hdr_h
+c.setFillColor(SECONDARY_ACCENT)
+c.rect(MARGIN, y0, PAGE_W - 2 * MARGIN, hdr_h, fill=1, stroke=0)
+text(MARGIN + 3, y0 + 3,
+     "CONSERVATIVE USE-BY GUIDE — refrigerated at 41°F / 5°C or below; "
+     "in / prep date counts as day 1",
+     size=8, font="Helvetica-Bold", color=colors.white)
+y = y0
+
+guide_col_w = (PAGE_W - 2 * MARGIN) / 2.0
+line_h = 13
+for gi, (item, days) in enumerate(USE_BY_GUIDE):
+    gx = MARGIN + (gi % 2) * guide_col_w
+    gy = y - line_h * (gi // 2 + 1)
+    text(gx + 3, gy + 2, item, size=7.5)
+    c.setFont("Helvetica-Bold", 7.5)
+    c.setFillColor(ACCENT)
+    c.drawRightString(gx + guide_col_w - 8, gy + 2, days)
+y -= line_h * ((len(USE_BY_GUIDE) + 1) // 2)
+text(MARGIN + 3, y - 10,
+     "Shortest end of USDA FSIS refrigerator ranges. Frozen items: date when thawed and restart the clock. "
+     "Local health code overrides this guide. When in doubt, throw it out.",
+     size=7, font="Helvetica-Oblique", color=colors.HexColor("#6C8C96"))
 
 c.showPage()
 c.save()
