@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weekly Kitchen Board</title>
+<meta name="description" content="Plan the week's menu, cost it, cost the labor, and track inventory, yield and waste.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231F6F8B'/%3E%3Ctext x='16' y='22' font-family='Helvetica' font-size='16' font-weight='bold' fill='white' text-anchor='middle'%3EKB%3C/text%3E%3C/svg%3E">
+<style>
+/*
+  Weekly Kitchen Board -- web version of build_form.py.
+  One file, no build step, no network calls. Everything a student types is
+  saved in this browser (localStorage), one entry per week.
+*/
+:root {
+  --fill: #E7F7F5;
+  --border: #5B9FB6;
+  --ink: #153447;
+  --accent: #1F6F8B;
+  --accent-2: #2F9E8F;
+  --grid: #BDD9E2;
+  --stripe: #F3FBFC;
+  --muted: #6C8C96;
+  --bg: #FFFFFF;
+  --warn: #B45309;
+  --warn-bg: #FEF3C7;
+  --bad: #B91C1C;
+  --bad-bg: #FEE2E2;
+  --good: #047857;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fill: #16323A; --border: #3E7F96; --ink: #E3F1F4; --accent: #5FB3CF;
+    --accent-2: #4CC2B0; --grid: #2A4852; --stripe: #13272E; --muted: #8FAFB8;
+    --bg: #0E1E23; --warn: #FBBF24; --warn-bg: #3A2B07; --bad: #F87171;
+    --bad-bg: #3B1111; --good: #34D399;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+header.top {
+  position: sticky; top: 0; z-index: 10; background: var(--bg);
+  border-bottom: 1px solid var(--grid); padding: 10px 16px 0;
+}
+.title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+h1 { margin: 0; font-size: 20px; color: var(--accent); letter-spacing: .02em; }
+.week-picker { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.week-picker select { width: auto; max-width: 13em; }
+@media (max-width: 639px) {
+  header.top { position: static; }
+  .week-picker { width: 100%; }
+  .week-picker select { flex: 1; max-width: none; }
+}
+nav.tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto; }
+nav.tabs button {
+  border: 0; background: none; color: var(--muted); font: inherit; font-weight: 600;
+  padding: 8px 12px; border-bottom: 3px solid transparent; cursor: pointer; white-space: nowrap;
+}
+nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+main { padding: 12px 16px 80px; max-width: 1280px; margin: 0 auto; }
+section.page { display: none; }
+section.page.active { display: block; }
+.sub { color: var(--muted); font-style: italic; margin: 2px 0 12px; }
+.banner {
+  background: var(--accent); color: #fff; font-weight: 700; font-size: 13px;
+  padding: 6px 10px; border-radius: var(--radius) var(--radius) 0 0; margin-top: 18px;
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px;
+}
+.banner.alt { background: var(--accent-2); }
+.banner small { font-weight: 400; font-style: italic; opacity: .95; }
+.box { border: 1px solid var(--border); border-top: 0; border-radius: 0 0 var(--radius) var(--radius); padding: 10px; }
+label.f { display: block; font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+label.f > span { display: block; margin-bottom: 3px; }
+input, select, textarea {
+  font: inherit; color: var(--ink); background: var(--fill);
+  border: 1px solid var(--border); border-radius: 6px; padding: 7px 8px; width: 100%; min-width: 0;
+}
+input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent-2); padding: 0; }
+textarea { min-height: 90px; resize: vertical; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+input.calc, output.calc {
+  background: transparent; border: 1px dashed var(--grid); font-weight: 700; color: var(--accent);
+  display: block; border-radius: 6px; padding: 7px 8px; min-height: 36px;
+}
+.grid { display: grid; gap: 0 12px; }
+@media (min-width: 640px) { .g2 { grid-template-columns: 1fr 1fr; } .g3 { grid-template-columns: repeat(3, 1fr); } .g4 { grid-template-columns: repeat(4, 1fr); } }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; }
+th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--muted); padding: 6px 4px; white-space: nowrap;
+}
+td { padding: 4px; vertical-align: middle; }
+tbody tr:nth-child(odd) { background: var(--stripe); }
+td.slot { font-weight: 700; font-size: 13px; white-space: nowrap; padding-right: 8px; }
+td.center { text-align: center; }
+table.board td input { min-width: 120px; }
+table.cost td input, table.cost td output { min-width: 80px; }
+table.inv td input, table.inv td select, table.inv td output { min-width: 70px; }
+table.inv td.wide input { min-width: 150px; }
+table.inv td select[aria-label$="anchor"] { min-width: 105px; }
+table.inv td select[aria-label$="rule"] { min-width: 190px; }
+table.inv td input[type="date"] { min-width: 140px; }
+tr.flag-bad td { background: var(--bad-bg); }
+tr.flag-warn td { background: var(--warn-bg); }
+.pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.pill.bad { background: var(--bad-bg); color: var(--bad); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+.pill.good { color: var(--good); }
+.note { font-size: 12px; color: var(--muted); font-style: italic; margin: 8px 2px 0; }
+.flags { margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; }
+.flags li { margin: 3px 0; }
+.btn {
+  font: inherit; font-weight: 600; border-radius: 6px; padding: 7px 12px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: #fff; white-space: nowrap;
+}
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn.danger { border-color: var(--bad); background: transparent; color: var(--bad); }
+.btn.sm { padding: 4px 9px; font-size: 13px; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.totals { display: grid; gap: 8px 12px; grid-template-columns: 1fr 1fr; }
+@media (min-width: 640px) { .totals { grid-template-columns: repeat(5, 1fr); } }
+.kpi { border: 1px solid var(--grid); border-radius: var(--radius); padding: 8px 10px; }
+.kpi b { display: block; font-size: 20px; color: var(--accent); }
+.kpi span { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.guide { display: grid; gap: 4px 20px; font-size: 13px; }
+@media (min-width: 640px) { .guide { grid-template-columns: 1fr 1fr; } }
+.guide div { display: flex; justify-content: space-between; gap: 8px; }
+.guide b { color: var(--accent); white-space: nowrap; }
+.save-state { font-size: 12px; color: var(--muted); }
+footer { font-size: 12px; color: var(--muted); font-style: italic; text-align: center; padding: 20px 16px 30px; }
+dialog { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--ink); max-width: 480px; width: calc(100% - 32px); }
+dialog::backdrop { background: rgba(0,0,0,.4); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+@media print {
+  header.top, nav.tabs, .no-print, .row-actions, footer .no-print { display: none !important; }
+  section.page { display: block !important; break-after: page; }
+  section.page:last-of-type { break-after: auto; }
+  body { font-size: 11px; background: #fff; color: #000; }
+  main { padding: 0; max-width: none; }
+  input, select, textarea { border: 1px solid #999; background: #fff; padding: 2px 4px; }
+  .print-title { display: block !important; }
+  .scroll { overflow: visible; }
+  table.board td input, table.cost td input, table.inv td input, table.inv td select { min-width: 0; }
+}
+.print-title { display: none; }
+@media screen and (max-width: 639px) {
+  table.cards thead { display: none; }
+  table.cards tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; padding: 8px 4px; }
+  table.cards td { padding: 0; }
+  table.cards td[hidden] { display: none; }
+  table.cards td.slot { grid-column: 1 / -1; font-size: 14px; }
+  table.cards td[data-day]::before { content: attr(data-day); display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+  table.cards td:empty:not(.slot) { display: none; }
+  table.cards td input, table.cards td output { min-width: 0 !important; }
+  table.inv td.inv-name { grid-column: 1 / -1; }
+  table.inv td.no-print { grid-column: 1 / -1; }
+  table.inv td select, table.inv td input[type="date"] { min-width: 0 !important; }
+  table.board td.center { display: flex; align-items: center; gap: 8px; grid-column: 1 / -1; text-align: left; }
+  table.board td.center::before { content: "Grab-and-go"; font-size: 12px; font-weight: 700; color: var(--muted); order: 2; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="title-row">
+    <h1>WEEKLY KITCHEN BOARD</h1>
+    <div class="week-picker no-print">
+      <label for="weekSelect" class="sr">Saved weeks</label>
+      <select id="weekSelect" title="Saved weeks on this device"></select>
+      <button class="btn sm" id="newWeekBtn" type="button">New week</button>
+      <button class="btn sm ghost" id="moreBtn" type="button" aria-haspopup="dialog">More</button>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="board" aria-selected="true">1 · Board</button>
+    <button role="tab" data-tab="cost" aria-selected="false">2 · Costing &amp; Labor</button>
+    <button role="tab" data-tab="inv" aria-selected="false">3 · Inventory &amp; Waste</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============================ PAGE 1 ============================ -->
+  <section class="page active" id="page-board" role="tabpanel">
+    <h2 class="print-title">Weekly Kitchen Board</h2>
+    <p class="sub">Slots stay fixed. Only the dish name changes.</p>
+
+    <div class="grid g3">
+      <label class="f"><span>Week of</span><input type="date" data-k="weekOf"></label>
+      <label class="f"><span>Team (2–6)</span><input type="number" min="2" max="6" inputmode="numeric" data-k="team"></label>
+      <label class="f"><span>Carries over from last week</span><input data-k="carryover"></label>
+    </div>
+    <div class="grid g4">
+      <label class="f"><span>Anchor protein</span><input data-k="anchor.prot"></label>
+      <label class="f"><span>Anchor veg base</span><input data-k="anchor.veg"></label>
+      <label class="f"><span>Sauce / dressing</span><input data-k="anchor.sauce"></label>
+      <label class="f"><span>Bread / dough</span><input data-k="anchor.bread"></label>
+    </div>
+
+    <div class="banner"><span>MENU BY DAY</span><small>GO = travels well as grab-and-go</small></div>
+    <div class="box scroll">
+      <table class="board cards">
+        <thead><tr><th>Slot</th><th data-days></th><th>GO</th></tr></thead>
+        <tbody id="boardBody"></tbody>
+      </table>
+    </div>
+
+    <div class="banner alt"><span>SERVICE DEBRIEF</span><small>fill at close, before anyone leaves</small></div>
+    <div class="box scroll">
+      <table class="cards">
+        <thead><tr><th></th><th data-days></th></tr></thead>
+        <tbody>
+          <tr><td class="slot">Sold out</td><td data-days-row="soldout"></td></tr>
+          <tr><td class="slot">Kill list</td><td data-days-row="kill"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <label class="f" style="margin-top:14px"><span>Plate cost flag (see Costing, page 2)</span><input data-k="platecostNote"></label>
+    <label class="f"><span>Notes / lesson-plan follow-ups</span><textarea data-k="notes"></textarea></label>
+    <div class="grid g3"><label class="f"><span>Instructor initials</span><input data-k="initials"></label></div>
+  </section>
+
+  <!-- ============================ PAGE 2 ============================ -->
+  <section class="page" id="page-cost" role="tabpanel">
+    <h2 class="print-title">Costing, Labor &amp; Waste Worksheet</h2>
+    <p class="sub">Do the math before you commit to the board. Grey dashed boxes calculate themselves.</p>
+
+    <div class="banner"><span>FOOD COST, one line per dish</span><small>target is usually 28–35% unless your program sets otherwise</small></div>
+    <div class="box scroll">
+      <table class="cost cards">
+        <thead><tr><th>Slot</th><th>Cost / portion $</th><th>Portions made</th><th>Total food cost $</th><th>Menu price $</th><th>Food cost %</th></tr></thead>
+        <tbody id="costBody"></tbody>
+      </table>
+    </div>
+
+    <div class="banner alt"><span>LABOR, what it costs to cook the board</span><small>labor cost = prep hours × wage</small></div>
+    <div class="box scroll">
+      <table class="cost cards">
+        <thead><tr><th>Per day</th><th data-days></th><th>Week</th></tr></thead>
+        <tbody>
+          <tr><td class="slot">Prep hours, all cooks</td><td data-days-row="laborHrs" data-type="number"></td><td data-day="Week"><output class="calc" id="laborHrsTotal"></output></td></tr>
+          <tr><td class="slot">Wage rate $/hr</td><td data-days-row="wage" data-type="number"></td><td></td></tr>
+          <tr><td class="slot">Labor cost $</td><td data-days-calc="laborCost"></td><td data-day="Week"><output class="calc" id="laborCostTotal"></output></td></tr>
+        </tbody>
+      </table>
+      <p class="note">Prep hours are added up across every cook: 3 cooks × 2 hrs = 6.</p>
+    </div>
+
+    <div class="banner"><span>INGREDIENT USE CHECK, which anchors does each dish lean on?</span><small>a dish with zero checks is buying something the list doesn't need</small></div>
+    <div class="box scroll">
+      <table>
+        <thead><tr><th>Slot</th><th>Protein</th><th>Veg base</th><th>Sauce</th><th>Bread / dough</th><th></th></tr></thead>
+        <tbody id="usesBody"></tbody>
+      </table>
+    </div>
+
+    <div class="banner alt"><span>WEEK TOTALS, food + labor is your prime cost</span><small>prime cost is commonly kept near 60–65% of sales</small></div>
+    <div class="box">
+      <div class="grid g3">
+        <label class="f"><span>Sales $ (price × portions sold)</span><input type="number" step="0.01" inputmode="decimal" data-k="weekSales"></label>
+        <div class="f" style="font-size:12px;font-weight:700"><span>Planned sales if everything sells $</span><output class="calc" id="plannedSales"></output></div>
+      </div>
+      <div class="totals" style="margin-top:6px">
+        <div class="kpi"><span>Food cost $</span><b id="kFood">–</b></div>
+        <div class="kpi"><span>Labor cost $</span><b id="kLabor">–</b></div>
+        <div class="kpi"><span>Food cost %</span><b id="kFoodPct">–</b></div>
+        <div class="kpi"><span>Labor %</span><b id="kLaborPct">–</b></div>
+        <div class="kpi"><span>Prime cost %</span><b id="kPrimePct">–</b></div>
+      </div>
+      <p class="note">Percentages use actual sales if entered, otherwise planned sales.</p>
+    </div>
+
+    <label class="f" style="margin-top:14px"><span>If this week's ingredient list had to lose one item, what would you drop, and what covers for it?</span><textarea data-k="reflection"></textarea></label>
+  </section>
+
+  <!-- ============================ PAGE 3 ============================ -->
+  <section class="page" id="page-inv" role="tabpanel">
+    <h2 class="print-title">Inventory, Yield &amp; Waste</h2>
+    <p class="sub">Weigh it, date it, cost it, then plan the board around what's here.</p>
+
+    <div class="banner"><span>ON HAND, count at the start of the week, finish USED / TOSSED at close</span><small>real cost per usable unit = $ / unit ÷ (yield % ÷ 100)</small></div>
+    <div class="box scroll" style="border-radius:0">
+      <table class="inv cards">
+        <thead><tr>
+          <th>Ingredient</th><th>Anchor</th><th>Storage</th><th>On hand</th><th>Unit</th><th>$ / unit</th>
+          <th>Yield %</th><th>Real $ / usable</th><th>In / prep</th><th>Use-by rule</th><th>Use by</th>
+          <th>Used</th><th>Tossed</th><th>Left</th><th>Init.</th><th class="no-print"></th>
+        </tr></thead>
+        <tbody id="invBody"></tbody>
+      </table>
+    </div>
+    <div class="box" style="border-top:1px solid var(--grid);border-radius:0 0 var(--radius) var(--radius);margin-top:-1px">
+      <div class="row-actions" style="margin-top:0">
+        <button class="btn sm" type="button" id="addRowBtn">Add ingredient</button>
+      </div>
+      <ul class="flags" id="invFlags"></ul>
+    </div>
+
+    <div class="banner alt"><span>WASTE</span><small>tossed weight × $ / unit (real cost if already trimmed)</small></div>
+    <div class="box">
+      <div class="grid g2">
+        <div class="f" style="font-size:12px;font-weight:700"><span>Waste this week $</span><output class="calc" id="wasteTotal"></output></div>
+        <label class="f"><span>Biggest toss &amp; why</span><input data-k="wasteReason"></label>
+      </div>
+    </div>
+
+    <div class="banner"><span>CONSERVATIVE USE-BY GUIDE, refrigerated at 41°F / 5°C or below</span><small>in / prep date counts as day 1</small></div>
+    <div class="box">
+      <div class="guide" id="guide"></div>
+      <p class="note">Shortest end of USDA FSIS refrigerator ranges. Frozen items: date when thawed and restart the clock. Local health code overrides this guide. When in doubt, throw it out.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Guthrie Entertainment · Cameron Kelly<br>
+  <span class="save-state" id="saveState">Saved on this device</span>
+</footer>
+
+<dialog id="moreDialog">
+  <h3 style="margin-top:0">This week's sheet</h3>
+  <div class="row-actions" style="margin-top:0">
+    <button class="btn" type="button" id="printBtn">Print / Save as PDF</button>
+    <button class="btn ghost" type="button" id="exportBtn">Download backup file</button>
+    <label class="btn ghost" style="display:inline-block">Open backup file<input type="file" id="importInput" accept="application/json,.json" hidden></label>
+  </div>
+  <p class="note">Everything is saved in this browser only. Download a backup to move it to another device or hand it in.</p>
+  <h3>Share &amp; print</h3>
+  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <img src="qr.png" alt="QR code that opens this form" width="120" height="120" style="border-radius:6px;background:#fff">
+    <div>
+      <p style="margin:0 0 8px;font-size:13px">Scan to open this form on another phone. Each device keeps its own weeks.</p>
+      <a class="btn ghost sm" href="weekly_kitchen_board.pdf" download>Blank printable PDF</a>
+    </div>
+  </div>
+  <h3>Delete</h3>
+  <button class="btn danger" type="button" id="deleteWeekBtn">Delete this week</button>
+  <div class="row-actions"><button class="btn ghost" type="button" id="closeDialog">Close</button></div>
+</dialog>
+
+<dialog id="newWeekDialog">
+  <h3 style="margin-top:0">Start a new week</h3>
+  <label class="f"><span>Week of</span><input type="date" id="newWeekDate"></label>
+  <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" id="carryInv" checked> Carry over what's left in inventory</label>
+  <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" id="carryAnchors"> Keep this week's anchors and labor rates</label>
+  <p class="note">Carried rows keep the ingredient, cost, yield and dates. On hand becomes what was left (on hand − used − tossed).</p>
+  <div class="row-actions">
+    <button class="btn" type="button" id="createWeekBtn">Create week</button>
+    <button class="btn ghost" type="button" id="cancelNewWeek">Cancel</button>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Config (mirrors build_form.py) ----------
+  var SLOTS = ["Appetizer / Side", "Salad", "Entree Salad + Protein", "Vegetarian Dish",
+               "Special Sandwich", "Composed Dish", "Flatbread"];
+  var DAYS = ["Wed", "Thu", "Fri", "Sat"];
+  var ANCHORS = [["prot", "Protein"], ["veg", "Veg base"], ["sauce", "Sauce"], ["bread", "Bread / dough"]];
+  // Days in the fridge, counting the in / prep date as day 1.
+  var USE_BY_RULES = [
+    ["", "None", null],
+    ["raw1", "Raw poultry / ground / fish", 1],
+    ["whole3", "Raw whole cuts", 3],
+    ["cooked3", "Cooked / leftovers", 3],
+    ["rte7", "Ready-to-eat, max", 7],
+    ["frozen", "Frozen (date when thawed)", null]
+  ];
+  var GUIDE = [
+    ["Raw poultry, ground meat, fresh fish / shellfish", "1 day"],
+    ["Raw whole cuts: beef, pork, lamb", "3 days"],
+    ["Cooked proteins, grains, soups, leftovers", "3 days"],
+    ["Hard ceiling, any ready-to-eat item prepped in-house (FDA Food Code)", "7 days"]
+  ];
+  var UNITS = ["lb", "oz", "kg", "g", "ea", "qt", "gal"];
+  var STORAGE = ["", "Walk-in", "Reach-in", "Freezer", "Dry", "Line"];
+  var STORE_KEY = "chefcam.kitchenBoard.v1";
+
+  // ---------- Storage (fails soft: private windows, blocked storage) ----------
+  function loadDb() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (raw) { var db = JSON.parse(raw); if (db && db.weeks) return db; }
+    } catch (e) { /* fall through to a fresh db */ }
+    return { current: null, weeks: {} };
+  }
+  var storageOk = true;
+  function saveDb() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); storageOk = true; }
+    catch (e) { storageOk = false; }
+    $("#saveState").textContent = storageOk
+      ? "Saved on this device · " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+      : "Not saved: this browser is blocking storage. Use More → Download backup file.";
+  }
+
+  function blankWeek(weekOf) {
+    return {
+      id: "w" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      weekOf: weekOf || "", team: "", carryover: "",
+      anchor: { prot: "", veg: "", sauce: "", bread: "" },
+      dish: SLOTS.map(function () { return DAYS.map(function () { return ""; }); }),
+      go: SLOTS.map(function () { return false; }),
+      soldout: DAYS.map(function () { return ""; }), kill: DAYS.map(function () { return ""; }),
+      platecostNote: "", notes: "", initials: "",
+      cost: SLOTS.map(function () { return { cost: "", portions: "", price: "" }; }),
+      laborHrs: DAYS.map(function () { return ""; }), wage: DAYS.map(function () { return ""; }),
+      uses: SLOTS.map(function () { return { prot: false, veg: false, sauce: false, bread: false }; }),
+      weekSales: "", reflection: "",
+      inv: [blankRow(), blankRow(), blankRow()],
+      wasteReason: "", updated: Date.now()
+    };
+  }
+  function blankRow() {
+    return { item: "", anchor: "", storage: "", weight: "", unit: "lb", unitCost: "", yieldPct: "",
+             inDate: "", rule: "", useBy: "", used: "", tossed: "", initials: "" };
+  }
+
+  var db = loadDb();
+  var week;
+
+  function $(s, root) { return (root || document).querySelector(s); }
+  function $all(s, root) { return Array.prototype.slice.call((root || document).querySelectorAll(s)); }
+  function num(v) { var n = parseFloat(v); return isFinite(n) ? n : null; }
+  function money(n) { return n == null ? "" : "$" + n.toFixed(2); }
+  function pct(n) { return n == null ? "" : n.toFixed(1) + "%"; }
+  function el(tag, attrs, kids) {
+    var e = document.createElement(tag);
+    for (var k in attrs || {}) {
+      if (k === "text") e.textContent = attrs[k];
+      else if (k in e && k !== "list") e[k] = attrs[k];
+      else e.setAttribute(k, attrs[k]);
+    }
+    (kids || []).forEach(function (c) { e.appendChild(c); });
+    return e;
+  }
+  function getPath(obj, path) { return path.split(".").reduce(function (o, k) { return o == null ? o : o[k]; }, obj); }
+  function setPath(obj, path, val) {
+    var ks = path.split("."), last = ks.pop();
+    ks.reduce(function (o, k) { return o[k]; }, obj)[last] = val;
+  }
+  // Date-only math in UTC so the result never shifts with the device's time zone.
+  function addDays(iso, n) {
+    var d = new Date(iso + "T00:00:00Z");
+    if (isNaN(d)) return "";
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+  function todayIso() {
+    var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  }
+  function weekLabel(w) {
+    if (!w.weekOf) return "Undated week";
+    var d = new Date(w.weekOf + "T00:00:00");
+    return "Wk of " + d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  var saveTimer;
+  function touched() {
+    week.updated = Date.now();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveDb, 250);
+    recalc();
+  }
+
+  // ---------- Render ----------
+  function renderAll() {
+    // Simple fields
+    $all("[data-k]").forEach(function (inp) {
+      var v = getPath(week, inp.dataset.k);
+      inp.value = v == null ? "" : v;
+      inp.oninput = function () { setPath(week, inp.dataset.k, inp.value); touched(); if (inp.dataset.k === "weekOf") refreshWeekSelect(); };
+    });
+
+    // Board
+    var bb = $("#boardBody"); bb.textContent = "";
+    SLOTS.forEach(function (slot, si) {
+      var tr = el("tr", {}, [el("td", { className: "slot", text: slot })]);
+      DAYS.forEach(function (d, di) {
+        var inp = el("input", { value: week.dish[si][di], "aria-label": slot + " " + d });
+        inp.addEventListener("input", function () { week.dish[si][di] = inp.value; touched(); });
+        tr.appendChild(el("td", { "data-day": d }, [inp]));
+      });
+      var go = el("input", { type: "checkbox", checked: week.go[si], "aria-label": slot + " grab-and-go" });
+      go.addEventListener("change", function () { week.go[si] = go.checked; touched(); });
+      tr.appendChild(el("td", { className: "center" }, [go]));
+      bb.appendChild(tr);
+    });
+
+    // Day cells for the debrief and labor rows. Each row keeps a hidden
+    // placeholder <td>; generated cells are inserted before it and dropped
+    // on the next render.
+    $all("td[data-gen]").forEach(function (c) { c.remove(); });
+    $all("[data-days-row]").forEach(function (td) {
+      var key = td.dataset.daysRow, type = td.dataset.type;
+      var cells = DAYS.map(function (d, i) {
+        var input = el("input", { type: type || "text", value: week[key][i], "aria-label": key + " " + d });
+        if (type === "number") { input.step = "0.01"; input.inputMode = "decimal"; input.min = "0"; }
+        input.addEventListener("input", function () { week[key][i] = input.value; touched(); });
+        return el("td", { "data-gen": "1", "data-day": d }, [input]);
+      });
+      cells.forEach(function (c) { td.before(c); });
+      td.hidden = true;
+    });
+    $all("[data-days-calc]").forEach(function (td) {
+      $all("td[data-gen-calc]", td.parentNode).forEach(function (c) { c.remove(); });
+      DAYS.forEach(function (d, i) {
+        td.before(el("td", { "data-gen-calc": "1", "data-day": d }, [el("output", { className: "calc", id: td.dataset.daysCalc + i })]));
+      });
+      td.hidden = true;
+    });
+
+    // Food cost
+    var cb = $("#costBody"); cb.textContent = "";
+    SLOTS.forEach(function (slot, si) {
+      var c = week.cost[si];
+      function numIn(key, label) {
+        var i = el("input", { type: "number", step: "0.01", min: "0", inputMode: "decimal", value: c[key], "aria-label": slot + " " + key });
+        i.addEventListener("input", function () { c[key] = i.value; touched(); });
+        return el("td", { "data-day": label }, [i]);
+      }
+      cb.appendChild(el("tr", {}, [
+        el("td", { className: "slot", text: slot }), numIn("cost", "Cost / portion $"), numIn("portions", "Portions"),
+        el("td", { "data-day": "Total food cost" }, [el("output", { className: "calc", id: "fcTotal" + si })]),
+        numIn("price", "Menu price $"),
+        el("td", { "data-day": "Food cost %" }, [el("output", { className: "calc", id: "fcPct" + si })])
+      ]));
+    });
+
+    // Anchor use check
+    var ub = $("#usesBody"); ub.textContent = "";
+    SLOTS.forEach(function (slot, si) {
+      var tr = el("tr", {}, [el("td", { className: "slot", text: slot })]);
+      ANCHORS.forEach(function (a) {
+        var cbx = el("input", { type: "checkbox", checked: week.uses[si][a[0]], "aria-label": slot + " uses " + a[1] });
+        cbx.addEventListener("change", function () { week.uses[si][a[0]] = cbx.checked; touched(); });
+        tr.appendChild(el("td", { className: "center" }, [cbx]));
+      });
+      tr.appendChild(el("td", {}, [el("span", { id: "useFlag" + si })]));
+      ub.appendChild(tr);
+    });
+
+    renderInventory();
+    recalc();
+  }
+
+  function renderInventory() {
+    var ib = $("#invBody"); ib.textContent = "";
+    week.inv.forEach(function (row, ri) {
+      var tr = el("tr", { id: "inv" + ri });
+      function txt(key, extra) {
+        var i = el("input", Object.assign({ value: row[key], "aria-label": "Row " + (ri + 1) + " " + key }, extra || {}));
+        i.addEventListener("input", function () { row[key] = i.value; touched(); });
+        return i;
+      }
+      function numIn(key) { return txt(key, { type: "number", step: "0.01", min: "0", inputMode: "decimal" }); }
+      function sel(key, opts) {
+        var s = el("select", { "aria-label": "Row " + (ri + 1) + " " + key });
+        opts.forEach(function (o) {
+          var val = Array.isArray(o) ? o[0] : o, lab = Array.isArray(o) ? o[1] : (o || "—");
+          s.appendChild(el("option", { value: val, text: lab }));
+        });
+        s.value = row[key];
+        s.addEventListener("change", function () { row[key] = s.value; applyRule(row, ri); touched(); });
+        return s;
+      }
+      var inDate = txt("inDate", { type: "date" });
+      inDate.addEventListener("input", function () { applyRule(row, ri); });
+      var useBy = txt("useBy", { type: "date", id: "useBy" + ri });
+      tr.appendChild(el("td", { className: "wide" }, [txt("item")]));
+      tr.appendChild(el("td", {}, [sel("anchor", [["", "—"], ["P", "P · protein"], ["V", "V · veg"], ["S", "S · sauce"], ["B", "B · bread"]])]));
+      tr.appendChild(el("td", {}, [sel("storage", STORAGE)]));
+      tr.appendChild(el("td", {}, [numIn("weight")]));
+      tr.appendChild(el("td", {}, [sel("unit", UNITS)]));
+      tr.appendChild(el("td", {}, [numIn("unitCost")]));
+      tr.appendChild(el("td", {}, [numIn("yieldPct")]));
+      tr.appendChild(el("td", {}, [el("output", { className: "calc", id: "real" + ri })]));
+      tr.appendChild(el("td", {}, [inDate]));
+      tr.appendChild(el("td", {}, [sel("rule", USE_BY_RULES.map(function (r) { return [r[0], r[1]]; }))]));
+      tr.appendChild(el("td", {}, [useBy]));
+      tr.appendChild(el("td", {}, [numIn("used")]));
+      tr.appendChild(el("td", {}, [numIn("tossed")]));
+      tr.appendChild(el("td", {}, [el("output", { className: "calc", id: "left" + ri })]));
+      tr.appendChild(el("td", {}, [txt("initials")]));
+      var del = el("button", { type: "button", className: "btn sm danger", text: "✕", title: "Remove row", "aria-label": "Remove row " + (ri + 1) });
+      del.addEventListener("click", function () {
+        if ((row.item || row.weight) && !confirm("Remove " + (row.item || "this row") + "?")) return;
+        week.inv.splice(ri, 1); renderInventory(); touched();
+      });
+      tr.appendChild(el("td", { className: "no-print" }, [del]));
+      // Label each cell from its column header, for the phone card layout.
+      var heads = $all("table.inv thead th").map(function (th) { return th.textContent; });
+      Array.prototype.forEach.call(tr.children, function (td, ci) { if (heads[ci]) td.setAttribute("data-day", heads[ci]); });
+      tr.firstChild.classList.add("inv-name");
+      ib.appendChild(tr);
+    });
+  }
+
+  // Fill in the use-by date from the rule, unless the student has no in date yet.
+  function applyRule(row, ri) {
+    var rule = USE_BY_RULES.filter(function (r) { return r[0] === row.rule; })[0];
+    if (!rule || rule[2] == null || !row.inDate) return;
+    row.useBy = addDays(row.inDate, rule[2] - 1);
+    var ub = $("#useBy" + ri);
+    if (ub) ub.value = row.useBy;
+  }
+
+  // ---------- Calculations ----------
+  function setOut(id, text) { var o = document.getElementById(id); if (o) o.textContent = text; }
+
+  function recalc() {
+    var foodTotal = 0, planned = 0, anyFood = false;
+    week.cost.forEach(function (c, si) {
+      var cost = num(c.cost), por = num(c.portions), price = num(c.price);
+      var total = cost != null && por != null ? cost * por : null;
+      if (total != null) { foodTotal += total; anyFood = true; }
+      if (price != null && por != null) planned += price * por;
+      setOut("fcTotal" + si, money(total));
+      var p = cost != null && price ? cost / price * 100 : null;
+      var o = document.getElementById("fcPct" + si);
+      if (o) {
+        o.textContent = pct(p);
+        o.style.color = p == null ? "" : (p > 35 ? "var(--bad)" : p < 28 ? "var(--accent)" : "var(--good)");
+      }
+    });
+
+    var laborTotal = 0, hrsTotal = 0, anyLabor = false;
+    DAYS.forEach(function (d, i) {
+      var h = num(week.laborHrs[i]), w = num(week.wage[i]);
+      if (h != null) hrsTotal += h;
+      var lc = h != null && w != null ? h * w : null;
+      if (lc != null) { laborTotal += lc; anyLabor = true; }
+      setOut("laborCost" + i, money(lc));
+    });
+    setOut("laborHrsTotal", hrsTotal ? hrsTotal.toFixed(1) + " hrs" : "");
+    setOut("laborCostTotal", anyLabor ? money(laborTotal) : "");
+    setOut("plannedSales", planned ? money(planned) : "");
+
+    var sales = num(week.weekSales) || planned || null;
+    $("#kFood").textContent = anyFood ? money(foodTotal) : "–";
+    $("#kLabor").textContent = anyLabor ? money(laborTotal) : "–";
+    $("#kFoodPct").textContent = sales && anyFood ? pct(foodTotal / sales * 100) : "–";
+    $("#kLaborPct").textContent = sales && anyLabor ? pct(laborTotal / sales * 100) : "–";
+    $("#kPrimePct").textContent = sales && (anyFood || anyLabor) ? pct((foodTotal + laborTotal) / sales * 100) : "–";
+
+    week.uses.forEach(function (u, si) {
+      var any = u.prot || u.veg || u.sauce || u.bread;
+      var hasDish = week.dish[si].some(function (d) { return d.trim(); });
+      var f = document.getElementById("useFlag" + si);
+      if (!f) return;
+      f.className = any ? "pill good" : (hasDish ? "pill warn" : "");
+      f.textContent = any ? "✓" : (hasDish ? "no anchor" : "");
+    });
+
+    var waste = 0, anyWaste = false, flags = [], today = todayIso(), tomorrow = addDays(today, 1);
+    week.inv.forEach(function (r, ri) {
+      var cost = num(r.unitCost), y = num(r.yieldPct);
+      setOut("real" + ri, cost != null && y ? money(cost / (y / 100)) : "");
+      var on = num(r.weight), used = num(r.used) || 0, tossed = num(r.tossed) || 0;
+      setOut("left" + ri, on != null ? (on - used - tossed).toFixed(2).replace(/\.00$/, "") : "");
+      if (tossed && cost != null) { waste += tossed * cost; anyWaste = true; }
+      var tr = document.getElementById("inv" + ri);
+      if (!tr) return;
+      var name = r.item || "Row " + (ri + 1);
+      tr.className = "";
+      if (r.useBy && r.item) {
+        if (r.useBy < today) { tr.className = "flag-bad"; flags.push(["bad", name + " is past its use-by date (" + r.useBy + ")."]); }
+        else if (r.useBy <= tomorrow) { tr.className = "flag-warn"; flags.push(["warn", name + " must be used by " + (r.useBy === today ? "today" : "tomorrow") + "."]); }
+      }
+      if (r.item && !r.anchor) flags.push(["warn", name + " isn't an anchor: plan a dish that uses it, or it's next week's toss."]);
+      if (on != null && used + tossed > on) flags.push(["bad", name + ": used + tossed is more than was on hand."]);
+    });
+    setOut("wasteTotal", anyWaste ? money(waste) : "");
+    var fl = $("#invFlags"); fl.textContent = "";
+    flags.forEach(function (f) { fl.appendChild(el("li", {}, [el("span", { className: "pill " + f[0], text: f[0] === "bad" ? "!" : "check" }), document.createTextNode(" " + f[1])])); });
+  }
+
+  // ---------- Weeks ----------
+  function sortedWeeks() {
+    return Object.keys(db.weeks).map(function (k) { return db.weeks[k]; })
+      .sort(function (a, b) { return (b.weekOf || "").localeCompare(a.weekOf || "") || b.updated - a.updated; });
+  }
+  function refreshWeekSelect() {
+    var s = $("#weekSelect"); s.textContent = "";
+    sortedWeeks().forEach(function (w) { s.appendChild(el("option", { value: w.id, text: weekLabel(w) })); });
+    s.value = week.id;
+  }
+  function openWeek(id) {
+    week = db.weeks[id]; db.current = id; saveDb(); renderAll(); refreshWeekSelect();
+  }
+  function nextMonday() {
+    var d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  }
+  function createWeek(dateIso, carryInv, carryAnchors) {
+    var w = blankWeek(dateIso), src = week;
+    if (src && carryInv) {
+      var rows = src.inv.filter(function (r) {
+        var left = (num(r.weight) || 0) - (num(r.used) || 0) - (num(r.tossed) || 0);
+        return r.item && left > 0;
+      }).map(function (r) {
+        var left = (num(r.weight) || 0) - (num(r.used) || 0) - (num(r.tossed) || 0);
+        return Object.assign(blankRow(), r, { weight: String(+left.toFixed(2)), used: "", tossed: "", initials: "" });
+      });
+      if (rows.length) {
+        w.inv = rows.concat([blankRow()]);
+        w.carryover = rows.map(function (r) { return r.item; }).join(", ");
+      }
+    }
+    if (src && carryAnchors) {
+      w.anchor = Object.assign({}, src.anchor);
+      w.team = src.team;
+      w.wage = src.wage.slice();
+    }
+    db.weeks[w.id] = w;
+    openWeek(w.id);
+  }
+
+  // ---------- Wire up ----------
+  function init() {
+    var g = $("#guide");
+    GUIDE.forEach(function (x) { g.appendChild(el("div", {}, [el("span", { text: x[0] }), el("b", { text: x[1] })])); });
+
+    // Day headers
+    $all("th[data-days]").forEach(function (th) {
+      var frag = document.createDocumentFragment();
+      DAYS.forEach(function (d) { frag.appendChild(el("th", { text: d })); });
+      th.replaceWith(frag);
+    });
+
+    $all("nav.tabs button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        $all("nav.tabs button").forEach(function (x) { x.setAttribute("aria-selected", x === b ? "true" : "false"); });
+        $all("section.page").forEach(function (p) { p.classList.toggle("active", p.id === "page-" + b.dataset.tab); });
+        try { sessionStorage.setItem("chefcam.tab", b.dataset.tab); } catch (e) {}
+        window.scrollTo(0, 0);
+      });
+    });
+    try { var t = sessionStorage.getItem("chefcam.tab"); if (t) $('nav.tabs button[data-tab="' + t + '"]').click(); } catch (e) {}
+
+    $("#weekSelect").addEventListener("change", function (e) { openWeek(e.target.value); });
+    $("#addRowBtn").addEventListener("click", function () { week.inv.push(blankRow()); renderInventory(); touched(); });
+
+    var nd = $("#newWeekDialog");
+    $("#newWeekBtn").addEventListener("click", function () {
+      $("#newWeekDate").value = week.weekOf ? addDays(week.weekOf, 7) : nextMonday();
+      nd.showModal();
+    });
+    $("#cancelNewWeek").addEventListener("click", function () { nd.close(); });
+    $("#createWeekBtn").addEventListener("click", function () {
+      createWeek($("#newWeekDate").value, $("#carryInv").checked, $("#carryAnchors").checked);
+      nd.close();
+    });
+
+    var md = $("#moreDialog");
+    $("#moreBtn").addEventListener("click", function () { md.showModal(); });
+    $("#closeDialog").addEventListener("click", function () { md.close(); });
+    $("#printBtn").addEventListener("click", function () { md.close(); setTimeout(function () { window.print(); }, 50); });
+    $("#exportBtn").addEventListener("click", function () {
+      var blob = new Blob([JSON.stringify({ app: "chefcam-kitchen-board", version: 1, weeks: [week] }, null, 2)], { type: "application/json" });
+      var a = el("a", { href: URL.createObjectURL(blob), download: "kitchen-board-" + (week.weekOf || "undated") + ".json" });
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+    $("#importInput").addEventListener("change", function (e) {
+      var file = e.target.files[0]; if (!file) return;
+      file.text().then(function (text) {
+        var data = JSON.parse(text), weeks = (data && data.weeks) || [];
+        weeks = weeks.filter(function (w) {
+          return w && Array.isArray(w.dish) && Array.isArray(w.cost) && Array.isArray(w.inv) && Array.isArray(w.uses);
+        });
+        if (!weeks.length) throw new Error("no weeks");
+        var last;
+        weeks.forEach(function (w) {
+          var merged = Object.assign(blankWeek(), w);
+          if (db.weeks[merged.id] && !confirm(weekLabel(merged) + " is already on this device. Replace it?")) return;
+          db.weeks[merged.id] = merged; last = merged.id;
+        });
+        if (last) openWeek(last);
+        md.close();
+      }).catch(function () { alert("That file isn't a Kitchen Board backup."); });
+      e.target.value = "";
+    });
+    $("#deleteWeekBtn").addEventListener("click", function () {
+      if (!confirm("Delete " + weekLabel(week) + "? This can't be undone.")) return;
+      delete db.weeks[week.id];
+      var rest = sortedWeeks();
+      md.close();
+      if (rest.length) openWeek(rest[0].id); else createWeek(nextMonday(), false, false);
+    });
+
+    var start = db.current && db.weeks[db.current] ? db.current : (sortedWeeks()[0] || {}).id;
+    if (start) openWeek(start); else createWeek(nextMonday(), false, false);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

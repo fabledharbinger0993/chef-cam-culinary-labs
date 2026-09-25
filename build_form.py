@@ -515,7 +515,8 @@ c.showPage()
 
 INVENTORY_ROWS = 18
 INV_COLS = [  # (header, field key, width, tooltip) -- widths are scaled to fill the page
-    ("INGREDIENT", "item", 150, "what it is"),
+    ("INGREDIENT", "item", 128, "what it is"),
+    ("ANCHOR", "anchor", 40, "P protein, V veg base, S sauce, B bread/dough -- blank if not an anchor"),
     ("STORAGE", "storage", 58, "walk-in, freezer, dry, line"),
     ("ON HAND", "weight", 50, "weight on hand when counted"),
     ("UNIT", "unit", 34, "lb, oz, kg or g"),
@@ -588,7 +589,11 @@ c.rect(MARGIN, y, FULL_W, inv_grid_top - y, fill=0, stroke=1)
 for xline in inv_x[1:-1]:
     c.line(xline, y, xline, inv_grid_top)
 
-y -= 6  # gap
+y -= 11
+text(MARGIN + 3, y, "ANCHOR:  P = protein  \u00b7  V = veg base  \u00b7  S = sauce / dressing  \u00b7  "
+     "B = bread / dough  \u00b7  blank = not an anchor \u2014 every blank row needs a dish that uses it, "
+     "or it's next week's toss", size=7, font="Helvetica-Oblique", color=MUTED)
+y -= 5  # gap
 
 # ---------- Waste total ----------
 row_h = 18
